@@ -1,0 +1,7 @@
+from utils.asic_signals import ASICSignals
+
+
+resets = ASICSignals()
+resets.send_reset(reset='hard',i2c='ASIC')
+resets.send_reset(reset='hard',i2c='emulator')
+print(f"Hard reset complete")
