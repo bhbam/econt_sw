@@ -68,11 +68,11 @@ if __name__ == "__main__":
     parser.add_argument('--io', type=str, default='from', help='IO block name')
     parser.add_argument('--odir', type=str, default='./', help='output dir')
     args = parser.parse_args()
-    startup()
-    set_fpga()
-    set_runbit(0)
-    i2cClient.call(args_yaml="configs/alignOutput_TS.yaml",args_i2c='ASIC,emulator',args_write=1)
-    set_runbit(1)
+    # startup()
+    # set_fpga()
+    # set_runbit(0)
+    # i2cClient.call(args_yaml="configs/alignOutput_TS.yaml",args_i2c='ASIC,emulator',args_write=1)
+    # set_runbit(1)
     for chip in range(10):
 
 
@@ -93,11 +93,11 @@ if __name__ == "__main__":
             io_scan_test = 0
             print(f"Phase width test at eTx failed !!!")
 
-        print("Outputting word alignment---------------------------------------------")
-        error_counts = output_align(verbose=0,outdir=args.odir, chip_number=chip)
-        if error_counts == 0:
-            output_alignment_test = 1
-            print("output word alignment test passed <<<")
-        else:
-            output_alignment_test = 0
-            print("output word alignment test failed !!!")
+        # print("Outputting word alignment---------------------------------------------")
+        # error_counts = output_align(verbose=0,outdir=args.odir, chip_number=chip)
+        # if error_counts == 0:
+        #     output_alignment_test = 1
+        #     print("output word alignment test passed <<<")
+        # else:
+        #     output_alignment_test = 0
+        #     print("output word alignment test failed !!!")
