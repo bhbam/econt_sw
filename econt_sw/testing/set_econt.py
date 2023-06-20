@@ -190,7 +190,7 @@ def simple_output_align(verbose=False):
     # data = lc.empty_fifo(["lc-ASIC","lc-emulator","lc-input"])
 
 
-def output_align(verbose=False):
+def def output_align(verbose=False,outdir='',chip_number=00000):
     tv.set_bypass(1)
     i2cClient.call(args_yaml="configs/alignOutput_TS.yaml",args_i2c='ASIC,emulator',args_write=True)
 
@@ -226,7 +226,7 @@ def output_align(verbose=False):
         # check
         align = lc.check_links(['lc-ASIC'])
         data = lc.get_captured_data(['lc-ASIC'])
-        tv.save_testvector(f"asic_capture.csv",data['lc-ASIC'])
+        tv.save_testvector(f"{outdir}/asic_capture_{chip_number}.csv",data['lc-ASIC'])
         if not align:
             logging.warning(f'ASIC link capture not aligned')
             continue
