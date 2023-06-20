@@ -286,12 +286,12 @@ def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emula
     from latency import align
 
     latency_ASIC =  lc.read_latency(['lc-ASIC'])['lc-ASIC']
-    align(BX0_word=0xffffffff,
+    bypass_test = align(BX0_word=0xffffffff,
           neTx=10,
           start_ASIC=start_ASIC,start_emulator=start_emulator,
           modify_ASIC=False
     )
-
+    return bypass_test
 
 def bypass_compare(idir,odir,ttag=""):
     # configure inputs
