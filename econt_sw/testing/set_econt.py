@@ -94,7 +94,7 @@ def set_fpga():
 def word_align(bx,emulator_delay,bcr=0,verbose=False):
     from eRx import checkWordAlignment,statusLogging
 
-
+    word_align_test = 0
     verbose=True
     def setAlignment(snapshotBX=None, delay=None):
         if snapshotBX is not None:
@@ -154,9 +154,9 @@ def word_align(bx,emulator_delay,bcr=0,verbose=False):
 
     if goodASIC and goodEmulator:
         logger.info(f'Good input word alignment, snapshotBX {snapshotBX} and delay {delay}')
-
+        word_align_test = 1
     statusLogging(sleepTime=2,N=1)
-
+    return word_align_test
 def simple_output_align(verbose=False):
     #find good delay settings
     from_io.align_delay_vals()
