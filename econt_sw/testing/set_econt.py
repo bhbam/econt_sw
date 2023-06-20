@@ -263,7 +263,7 @@ def output_align(verbose=False,outdir='',chip_number=00000):
         logging.info('Links are aligned between ASIC and emulator')
 
     data = lc.empty_fifo(["lc-ASIC","lc-emulator","lc-input"])
-
+    return err_counts
 def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13):
     # configure alignment inputs
     tv.configure("",idir,fname="testInput.csv")
