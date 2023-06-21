@@ -258,7 +258,7 @@ def output_align(verbose=False,outdir='',chip_number=00000):
         logging.warning(f'eTx error count after alignment: {err_counts}')
         data = lc.get_captured_data(lcaptures,nwords)
         for lcapture in data.keys():
-            tv.save_testvector(f"{lcapture}_compare_sc_align.csv",data[lcapture])
+            tv.save_testvector(f"{outdir}/{lcapture}_compare_sc_align_{chip_number}.csv",data[lcapture])
     else:
         logging.info('Links are aligned between ASIC and emulator')
 
