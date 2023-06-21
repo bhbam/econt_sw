@@ -372,7 +372,7 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 i2cClient.call(args_name='EPRXGRP_TOP_trackMode', args_value=f'{trackmode}')
                 phaseSelect_vals = []
                 error_t =[]
-                for trainchannel in range(0, 5):
+                for trainchannel in range(0, 50):
                     # if trackmode == 3:
                     #     set_phase(best_setting=','.join([str(i) for i in best_setting]))
                     i2cClient.call(args_name='CH_EPRXGRP_*_trainChannel', args_value='1')
