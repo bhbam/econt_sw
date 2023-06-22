@@ -181,38 +181,38 @@ def align(BX0_word=0xf922f922,
           neTx=13,
           start_ASIC=0,start_emulator=0,
           modify_ASIC=True,modify_emulator=True):
+    try:
+       if modify_ASIC:
+           latency_ASIC,BX0_ASIC = scan_latency('lc-ASIC',BX0_word,neTx,starting_value=start_ASIC)
+           if BX0_ASIC is None:
+               logging.error('No BX0 word found for ASIC during latency alignment')
+               exit()
+           else:
+               logging.debug('Found latency and BX0 word for ASIC %s %i'%(latency_ASIC,BX0_ASIC))
+       else:
+           BX0_rows = find_BX0('lc-ASIC',BX0_word)
+           _,_,BX0_ASIC = match_BX0(BX0_rows,neTx)
+       if modify_emulator:
+           latency_emulator,BX0_emulator = scan_latency('lc-emulator',BX0_word,neTx,BX0_ASIC,starting_value=start_emulator)
 
-    if modify_ASIC:
-        latency_ASIC,BX0_ASIC = scan_latency('lc-ASIC',BX0_word,neTx,starting_value=start_ASIC)
-        if BX0_ASIC is None:
-            logging.error('No BX0 word found for ASIC during latency alignment')
-            exit()
-        else:
-            logging.debug('Found latency and BX0 word for ASIC %s %i'%(latency_ASIC,BX0_ASIC))
-
-    else:
-        BX0_rows = find_BX0('lc-ASIC',BX0_word)
-        _,_,BX0_ASIC = match_BX0(BX0_rows,neTx)
-
-    if modify_emulator:
-        latency_emulator,BX0_emulator = scan_latency('lc-emulator',BX0_word,neTx,BX0_ASIC,starting_value=start_emulator)
-
-        if(BX0_emulator != BX0_ASIC):
-            if modify_ASIC and 0 in latency_emulator:
-                logging.info('Found BX0 word for emulator at %i. Modifying ASICs latency now.'%(BX0_emulator))
-                latency_ASIC,BX0_ASIC = scan_latency('lc-ASIC',BX0_word,neTx,BX0_emulator,starting_value=0)
-            elif np.any(latency_emulator)>=0:
-                logging.info('Found BX0 word for emulator at %i. Need to do a reverse search starting from %i'%(BX0_emulator,start_emulator-1))
-                latency_emulator,BX0_emulator = scan_latency('lc-emulator',BX0_word,neTx,BX0_ASIC,starting_value=start_emulator-1,reverse=True)
-                if BX0_emulator == BX0_ASIC:
-                    logging.debug('Found latency and BX0 word: emulator %s %i'%(latency_emulator,BX0_emulator))
-                else:
-                    logging.warning('Did not find latency. Exiting')
-                    exit()
-            else:
-                minlatency_ASIC = min(lc.read_latency(['lc-ASIC'])['lc-ASIC'])
-                logging.warning('Found BX0 word for emulator at %i at the lowest latency. But, not able to modify ASICs latency since min is at %i.'%minlatency_ASIC)
-        else:
-            logging.debug('Found latency and BX0 word for emulator %s %i'%(latency_emulator,BX0_emulator))
-
-    return True
+           if(BX0_emulator != BX0_ASIC):
+               if modify_ASIC and 0 in latency_emulator:
+                   logging.info('Found BX0 word for emulator at %i. Modifying ASICs latency now.'%(BX0_emulator))
+                   latency_ASIC,BX0_ASIC = scan_latency('lc-ASIC',BX0_word,neTx,BX0_emulator,starting_value=0)
+               elif np.any(latency_emulator)>=0:
+                   logging.info('Found BX0 word for emulator at %i. Need to do a reverse search starting from %i'%(BX0_emulator,start_emulator-1))
+                   latency_emulator,BX0_emulator = scan_latency('lc-emulator',BX0_word,neTx,BX0_ASIC,starting_value=start_emulator-1,reverse=True)
+                   if BX0_emulator == BX0_ASIC:
+                       logging.debug('Found latency and BX0 word: emulator %s %i'%(latency_emulator,BX0_emulator))
+                   else:
+                       logging.warning('Did not find latency. Exiting')
+                       exit()
+               else:
+                   minlatency_ASIC = min(lc.read_latency(['lc-ASIC'])['lc-ASIC'])
+                   logging.warning('Found BX0 word for emulator at %i at the lowest latency. But, not able to modify ASICs latency since min is at %i.'%minlatency_ASIC)
+           else:
+               logging.debug('Found latency and BX0 word for emulator %s %i'%(latency_emulator,BX0_emulator))
+       return True
+    except:
+       logging.warning('Did not pass align function')
+       return False
