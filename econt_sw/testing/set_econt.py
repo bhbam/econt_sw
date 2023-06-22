@@ -151,7 +151,6 @@ def word_align(bx,emulator_delay,bcr=0,verbose=False):
         # just set the parameters and check alignment
         setAlignment(snapshotBX,delay)
         goodASIC,goodEmulator = checkWordAlignment(verbose=verbose,match_pattern=match_pattern)
-
     if goodASIC and goodEmulator:
         logger.info(f'Good input word alignment, snapshotBX {snapshotBX} and delay {delay}')
         word_align_test = 1
@@ -266,6 +265,7 @@ def output_align(verbose=False,outdir='',chip_number=00000):
     return err_counts
 def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13):
     # configure alignment inputs
+    bypass_test = 0
     tv.configure("",idir,fname="testInput.csv")
 
     # configure RPT output via bypass
@@ -284,13 +284,14 @@ def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emula
 
     # then modify emulators latency until we find pattern
     from latency import align
-
     latency_ASIC =  lc.read_latency(['lc-ASIC'])['lc-ASIC']
-    bypass_test = align(BX0_word=0xffffffff,
+    align_test = align(BX0_word=0xffffffff,
           neTx=10,
           start_ASIC=start_ASIC,start_emulator=start_emulator,
           modify_ASIC=False
     )
+    if align_test:
+       bypass_test =1
     return bypass_test
 
 def bypass_compare(idir,odir,ttag=""):
