@@ -5,21 +5,13 @@ from PRBS import scan_prbs
 from PLL import scanCapSelect
 from delay_scan import delay_scan
 from PowerSupplyControls import Agilent3648A
-import csv
 import argparse,os,pickle,pprint
 import numpy as np
-import sys,copy
-import logging
-import datetime
-import sqlite3
-import numpy as np
-import socket
-import os, time, datetime
-import argparse
+import sys,copy,logging,datetime,sqlite3,socket,os,time,csv,argparse
 from sqlite3_database import create_database, add_many_column, show_all_plan
 
-ps=Agilent3648A(host="192.168.1.50",addr=8) # This is for 48
 i2cClient=I2C_Client(forceLocal=1)
+ps=Agilent3648A(host="192.168.1.50",addr=8) # This is for board 48
 
 #-----------------------------------------
 def consecutive(data, stepsize=1):
@@ -45,13 +37,22 @@ def get_max_width(err_counts, channels, padding): # channels 12 for phase scan a
         max_width_by_ch.append(max_width)
         second_max_width_by_ch.append(second_max_width)
     return max_width_by_ch, second_max_width_by_ch
+
+def find_nearest_value(target, values):
+    nearest_value = None
+    smallest_difference = float('inf')
+    for value in values:
+        difference = abs(value - target)
+        if difference < smallest_difference:
+            smallest_difference = difference
+            nearest_value = value
+    return nearest_value
 #--------------------------------------------------
 
 #--------------------------------------------------
 def qc_i2c(i2c_address=0x20):
     rw_test = 0
     sys.path.append( 'zmq_i2c/')
-
     def is_match(pairs,pairs_read):
         no_match = {}
         for key, value in pairs.items():
@@ -67,26 +68,21 @@ def qc_i2c(i2c_address=0x20):
         return no_match
 
     def ping_all_addresses():
-
         rw_one_test = 0
         rw_zero_test = 0
         default_pairs = board.translator.pairs_from_cfg(allowed=['RW'])
-
         pairs_one = copy.deepcopy(default_pairs)
         pairs_zero = copy.deepcopy(default_pairs)
         for key, value in pairs_one.items():
             size_byte = value[1]
             pairs_one[key][0] = int("1"*8*size_byte,2).to_bytes(size_byte,'little')
             pairs_zero[key][0] = int("0").to_bytes(size_byte,'little')
-
         #DO NOT TURN OFF ERX_MUX_1
         # This is the FCMD_CLK input, disabling it disables i2c clock
         pairs_zero[1267][0]=b'\x01'
-
         logging.info(f"Writing ones to all registers")
         board.write_pairs(pairs_one)
         pairs_one_read = board.read_pairs(pairs_one)
-
         no_match_one = is_match(pairs_one,pairs_one_read)
         # print("pairs_one---------- ", pairs_one)
         # print("pairs_one_read---------- ", pairs_one_read)
@@ -99,7 +95,6 @@ def qc_i2c(i2c_address=0x20):
         logging.info(f"Writing zeros to all registers")
         board.write_pairs(pairs_zero)
         pairs_zero_read = board.read_pairs(pairs_zero)
-
         no_match_zero = is_match(pairs_zero,pairs_zero_read)
         # print("no_match_zero---------- ", no_match_zero)
         if len(no_match_zero)==0:
@@ -109,7 +104,6 @@ def qc_i2c(i2c_address=0x20):
             logging.warning("Read zero pairs do not match %s",no_match_zero)
             np.savetxt(f"{odir}/rw_pair_zero_comparion_{tag}.txt", np.array([pairs_zero, pairs_zero_read]), delimiter=' ', fmt='%s', header='')
         return rw_one_test, rw_zero_test
-
     from econ_interface import econ_interface
     board = econ_interface(i2c_address, 1, fpath="zmq_i2c/")
     rw_one, rw_zero = ping_all_addresses()
@@ -120,20 +114,13 @@ def qc_i2c(i2c_address=0x20):
     else:
         logging.warning("Read Write test failed!!!")
     return rw_test
-
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pll_width_th=11, thresold_max_width=3,thresold_second_max_width=2,max_IO_delay_scan_width_thresold = 13, second_max_IO_delay_scan_width_thresold = 12):
     start_time = time.time()
-
-
     logging.info(f"---------------------------------Test Begain--------------------------------")
     logging.info(f"All test data  file are stored in output directory {odir}")
-    #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    # power voltage and current to chip test
-
-
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # power voltage and current to chip test given
     voltage = voltage
     current = current
     dirs = [
@@ -146,8 +133,7 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
         "configs/test_vectors/mcDataset/BC_12eTx/",
         "configs/test_vectors/mcDataset/BC_1eTx/",
     ]
-
-    #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     # Deafult valuses
     rw_test = -1
     pll_test , pll_width = -1, -1
@@ -165,40 +151,34 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
     over_all_test = -1
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     try:
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Stress test i2c (read write test)
-
         try:
            rw_test = qc_i2c()
-
         except:
            logging.warning("Read Write test incomplete ???")
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Do a hard reset
         logging.info(f"Hard reset")
         resets = ASICSignals()
         resets.send_reset(reset='hard',i2c='ASIC')
         resets.send_reset(reset='hard',i2c='emulator')
-
-
         # Initialize
         logging.info("Initializing")
         startup()
         set_fpga()
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # PLL VCO Cap select scan and set value back
         logging.info(f"Scan over PLL VCOCapSelect values")
         goodVOCCapValue = 27
-
         try:
             #TODO: find good value automatically
             VOCCapselected, state  = scanCapSelect(verbose=1, odir=odir, tag=tag)
-
             pll_thresold = pll_width_th
             if len(VOCCapselected) ==0:
                 logging.info("No Good PLL VOCCapSelect values")
                 pll_test = 0
-                logging.debug(f"Trying to Set VCOCapSelect value to {goodVOCCapValue}")
+                logging.info(f"Trying to Set VCOCapSelect value to {goodVOCCapValue}")
             else:
                 logging.info(f"Good PLL VOCCapSelect values: %s"%VOCCapselected)
                 np.savetxt(f"{odir}/good_capSelected_values_{tag}.txt", np.array([VOCCapselected]), delimiter=" ", fmt="%d", header="")
@@ -207,33 +187,24 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 size = [np.size(a) for a in phase]
                 pll_width = np.max(size)
                 logging.info(f"Good PLL width  {pll_width}")
-
-
                 if (pll_width >= pll_thresold) and (goodVOCCapValue in VOCCapselected):
                     pll_test = 1
                     logging.info(f" PLL test passed <<<")
-
-
                 else:
                     pll_test = 0
-                    logging.info(f" PLL test failed!!")
-                    if goodVCOCapValue not in VOCCapselected:
+                    logging.warning(f" PLL test failed!!")
+                    if goodVOCCapValue not in VOCCapselected:
                         logging.warning(f"Default value {goodVOCCapValue} does not does not give PUSM 9")
-                        goodVOCCapValue = VOCCapselected[0]
-
-            logging.debug(f"Setting VCOCapSelect value to {goodVOCCapValue}")
+                        goodVOCCapValue = find_nearest_value(goodVOCCapValue, VOCCapselected)
+                        logging.warning(f"VOCCapSelect value is set to {goodVOCCapValue} which is nearest to 27 and give PUSM 9")
+            logging.info(f"Setting VCOCapSelect value to {goodVOCCapValue}")
             i2cClient.call(args_name='PLL_CBOvcoCapSelect',args_value=f'{goodVOCCapValue}')
         except:
             logging.warning(f"PLL test incomplete ???")
-
-            logging.debug(f"Try to Setting VCOCapSelect value to {goodVOCCapValue}")
+            logging.info(f"Try to Setting VCOCapSelect value to {goodVOCCapValue}")
             i2cClient.call(args_name='PLL_CBOvcoCapSelect',args_value=f'{goodVOCCapValue}')
-
-
-
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # logging.info(f"Scan phase w PRBS err counters and width")
-
         try:
             err_counts, best_setting = scan_prbs(32,'ASIC',0.05,range(0,12),1,verbose=0,odir=odir,tag=tag)
             np.savetxt(f"{odir}/best_phase_scan_seting_{tag}.txt", np.array([best_setting]), delimiter=" ", fmt="%d", header="")
@@ -251,18 +222,18 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 logging.info(f"Phase width test at eRx is passed <<<")
             else:
                 phase_width_test = 0
-                logging.info(f"Phase width test at eRx is failed !!!")
+                logging.warning(f"Phase width test at eRx is failed !!!")
         except:
 
             logging.warning(f"Phase width test at eRx is incomplete ???")
 
-        # #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # # Other init steps
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # Other init steps
         set_phase(best_setting=','.join([str(i) for i in best_setting]))
         set_phase_of_enable(0)
         set_runbit(1)
         read_status()
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Input word alignment
 
         logging.info("Align input words")
@@ -273,10 +244,10 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
             if input_word_alignment_test == 1:
                 logging.info(f"Input word alignment test passed <<<")
             else:
-                ogging.warning(f"Input word alignment test failed !!!")
+                logging.warning(f"Input word alignment test failed !!!")
         except:
             logging.warning(f"Input word alignment test is incomplete ???")
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Scan IO delay scan and width and io_delay_scan_test
 
         logging.info('from IO delay scan')
@@ -300,15 +271,12 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 logging.info(f"Phase width test at eTx passed <<<")
             else:
                 io_scan_test = 0
-                logging.info(f"Phase width test at eTx failed !!!")
+                logging.warning(f"Phase width test at eTx failed !!!")
         except:
 
             logging.warning(f"Phase width test at eTx is incomplete ???")
-
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Output alignment
-
         try:
             logging.info("Outputting word alignment")
             error_counts = output_align(verbose=0,outdir=odir, chip_number=chip)
@@ -318,18 +286,14 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
             else:
                 output_alignment_test = 0
                 logging.warning("output word alignment test failed !!!")
-            logging.info('\n')
         except:
             logging.warning("output alignment test incomplete ???")
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Bypass alignment
-
         logging.info("Alignment bypass mode")
-
         try:
             bypass_alignment = bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13)
-            logging.info('\n')
-            if bypass_alignment:
+            if bypass_alignment==1:
                 alignment_bypass_test = 1
                 logging.info("Alignment bypass test passed <<<")
             else:
@@ -337,7 +301,7 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 logging.warning("Alignment bypass test failed !!!")
         except:
             logging.warning("Alignment bypass test is incomplete ???")
-        #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Compare for various configurations
         logging.info("Comparing various configurations")
         try:
@@ -355,14 +319,12 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
             if total_error_config == 0:
                 comparing_various_config_test = 1
                 logging.info("comparing various configurations test passed <<<")
-
             else:
                 comparing_various_config_test = 0
-                logging.info("various configurations test failed !!!")
-
+                logging.warning("various configurations test failed !!!")
         except:
             logging.warning("Comparing various configurations test is incomplete ???")
-    #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Test the different track modes and train channels
         logging.info('Testing track modes')
         try:
@@ -372,9 +334,9 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 i2cClient.call(args_name='EPRXGRP_TOP_trackMode', args_value=f'{trackmode}')
                 phaseSelect_vals = []
                 error_t =[]
-                for trainchannel in range(0, 50):
-                    # if trackmode == 3:
-                    #     set_phase(best_setting=','.join([str(i) for i in best_setting]))
+                if trackmode == 3:
+                    set_phase(best_setting=','.join([str(i) for i in best_setting]))
+                for trainchannel in range(0,50):
                     i2cClient.call(args_name='CH_EPRXGRP_*_trainChannel', args_value='1')
                     i2cClient.call(args_name='CH_EPRXGRP_*_trainChannel', args_value='0')
                     x = i2cClient.call(args_name='CH_EPRXGRP_*_status_phaseSelect',args_i2c='ASIC')
@@ -389,7 +351,6 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                 with open(f'{odir}/trackmode{trackmode}_phaseSelect_{chip}board.csv', 'w') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerows(zip(*phaseSelect_vals))
-
                 total_error2 = np.sum(error_t)
                 if trackmode == 1:
                     if total_error2 == 0:
@@ -397,41 +358,37 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
                         logging.info(f"trackmode {trackmode} test passed <<<  ")
                     else:
                         track_mode_1_test = 0
+                        logging.warning(f"total error in trackmode {trackmode} in all run --->   {total_error2}")
                         logging.warning(f"trackmode {trackmode} test failed !!!  ")
-                        logging.info(f"total error in trackmode {trackmode} in all run ---  ", total_error2)
                 if trackmode == 2:
                     if total_error2 == 0:
                         track_mode_2_test = 1
                         logging.info(f"trackmode {trackmode} test passed <<<   ")
                     else:
                         track_mode_2_test = 0
+                        logging.warning(f"total error in trackmode {trackmode} in all run --->   {total_error2}")
                         logging.warning(f"trackmode {trackmode} test failed !!!  ")
-                        logging.info(f"total error in trackmode {trackmode} in all run ---  ", total_error2)
                 if trackmode == 3:
                     if total_error2 == 0:
                         track_mode_3_test = 1
                         logging.info(f"trackmode {trackmode} test passed <<<   ")
                     else:
                         track_mode_3_test = 0
+                        logging.warning(f"total error in trackmode {trackmode} in all run ---> {total_error2}")
                         logging.warning(f"trackmode {trackmode} test failed !!!  ")
-                        logging.info(f"total error in trackmode {trackmode} in all run ---  ", total_error2)
             if track_mode_1_test==1 and track_mode_2_test==1 and track_mode_3_test==1:
                 track_mode_test = 1
                 logging.info(f"trackmode test passed <<<")
             else:
                 track_mode_test = 0
                 logging.warning(f"trackmode test failed !!!")
-
-
         except:
             logging.warning("Trackmode Test is not completed ???")
-
-        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Soft reset
         logging.info(f"Soft reset")
         resets.send_reset(reset='soft',i2c='ASIC')
         resets.send_reset(reset='soft',i2c='emulator')
-
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         over_all_run = 1
         logging.info(f"Over all Run                     ---->   {over_all_run}")
@@ -449,19 +406,31 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
     logging.info(f"Comparing various Configuration Test ---->   {comparing_various_config_test}")
     logging.info(f"Track Mode Test                      ---->   {track_mode_test}")
 
-    if(rw_test==1 and pll_test==1 and phase_width_test==1 and input_word_alignment_test==1 and io_scan_test==1 and output_alignment_test==1 and alignment_bypass_test ==1 and comparing_various_config_test==1 and track_mode_test ==1):
+    if(rw_test==1 and pll_test==1 and phase_width_test==1 and input_word_alignment_test==1 and \
+    io_scan_test==1 and output_alignment_test==1 and alignment_bypass_test ==1 and\
+    comparing_various_config_test==1 and track_mode_test ==1):
         over_all_test = 1
         logging.info("----------->    pass all the tests     <----------------")
     else:
         over_all_test = 0
-        logging.info("!!!!!!!!!!   failed to pass all tests   !!!!!!!!!!!!!!!!!!")
+        logging.warning("!!!!!!!!!!   failed to pass all tests   !!!!!!!!!!!!!!!!!!")
     end_ = datetime.datetime.now()
     test_end_time  = end_.strftime("%Y-%m-%d_%H:%M:%S")
     end_time = time.time()
     logging.info(f"Total time taken for test --------->   {end_time - start_time} sec")
     logging.info(f"----------------------------------- Test Finalized ---------------------------------")
-    return  voltage, current, over_all_test, rw_test, pll_test, phase_width_test,input_word_alignment_test,io_scan_test,output_alignment_test,alignment_bypass_test,comparing_various_config_test,track_mode_test,pll_width,max_width[0],max_width[1],max_width[2],max_width[3],max_width[4],max_width[5],max_width[6],max_width[7],max_width[8],max_width[9],max_width[10],max_width[11],second_max_width[0],second_max_width[1],second_max_width[2],second_max_width[3],second_max_width[4],second_max_width[5],second_max_width[6],second_max_width[7],second_max_width[8],second_max_width[9],second_max_width[10],second_max_width[11],max_width_io[0],max_width_io[1],max_width_io[2],max_width_io[3],max_width_io[4],max_width_io[5],max_width_io[6],max_width_io[7],max_width_io[8],max_width_io[9],max_width_io[10],max_width_io[11],max_width_io[12],second_max_width_io[0],second_max_width_io[1],second_max_width_io[2],second_max_width_io[3],second_max_width_io[4],second_max_width_io[5],second_max_width_io[6],second_max_width_io[7],second_max_width_io[8],second_max_width_io[9],second_max_width_io[10],second_max_width_io[11],second_max_width_io[12], over_all_run
-# #==================================================================================
+    return  voltage, current, over_all_test, rw_test,pll_test,phase_width_test,input_word_alignment_test,\
+    io_scan_test,output_alignment_test,alignment_bypass_test,comparing_various_config_test,track_mode_test,\
+    pll_width,max_width[0],max_width[1],max_width[2],max_width[3],max_width[4],max_width[5],max_width[6],\
+    max_width[7],max_width[8],max_width[9],max_width[10],max_width[11],second_max_width[0],second_max_width[1],\
+    second_max_width[2],second_max_width[3],second_max_width[4],second_max_width[5],second_max_width[6],\
+    second_max_width[7],second_max_width[8],second_max_width[9],second_max_width[10],second_max_width[11],\
+    max_width_io[0],max_width_io[1],max_width_io[2],max_width_io[3],max_width_io[4],max_width_io[5],max_width_io[6],\
+    max_width_io[7],max_width_io[8],max_width_io[9],max_width_io[10],max_width_io[11],max_width_io[12],\
+    second_max_width_io[0],second_max_width_io[1],second_max_width_io[2],second_max_width_io[3],second_max_width_io[4],\
+    second_max_width_io[5],second_max_width_io[6],second_max_width_io[7],second_max_width_io[8],second_max_width_io[9],\
+    second_max_width_io[10],second_max_width_io[11],second_max_width_io[12], over_all_run
+#===============================================================================================================================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--chip', '-c', type=int, default=9999, help='Chip number')
@@ -471,12 +440,6 @@ if __name__ == "__main__":
     chip = args.chip
     out_dir = args.odir
     database = args.database
-    pll_th = 14
-    max_eRx_th = 4
-    sec_max_eRx_th = 3
-    max_eTx_th = 14
-    sec_max_eTx_th = 12
-
     start_ = datetime.datetime.now()
     test_start_time  = start_.strftime("%Y-%m-%d_%H:%M:%S")
     odir = f"{out_dir}/chip_{chip}"
@@ -484,7 +447,6 @@ if __name__ == "__main__":
         os.system(f'rm -r {odir}')
     os.system(f'mkdir -p {odir}')
     tag=f"chip_{chip}"
-
     logName=f"{odir}/logFile_{tag}.log"
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - {_tag} - %(levelname)-6s %(message)s'.format(_tag=tag),
@@ -497,27 +459,47 @@ if __name__ == "__main__":
     _f='%(asctime)s - {_tag} - %(levelname)-6s %(message)s'.format(_tag=tag)
     console.setFormatter(logging.Formatter(_f))
     logging.getLogger().addHandler(console)
-
+#------------------------------------------
+# Power supply
     ps.SetLimits_1(v=1.2,i=0.6)
     ps.TurnOn()
-    time.sleep(2)
+    time.sleep(1)
     real_voltage = ps.ReadPower_1()
     np.savetxt(f"{odir}/power_voltage_current_{tag}.txt", np.array([real_voltage]), delimiter=" ", fmt="%s", header="")
     logging.info(f"power status, voltage and current  to chip : {real_voltage[0]},  {real_voltage[1]}, {real_voltage[2]}")
     voltage = real_voltage[1]
     current = real_voltage[2]
+#------------------------------------------------
+#setting thresold value
+    pll_th = 14
+    max_eRx_th = 4
+    sec_max_eRx_th = 3
+    max_eTx_th = 14
+    sec_max_eTx_th = 12
     logging.info(f"Thresold for PLL good width used : {pll_th}")
     logging.info(f"Thresold for max good Phase width used at eRx: {max_eRx_th}")
     logging.info(f"Thresold for 2nd max good Phase width used at eRx: {sec_max_eRx_th}")
     logging.info(f"Thresold for max good Phase width used at eTx: {max_eTx_th}")
     logging.info(f"Thresold for 2nd max good Phase width used at eTx: {sec_max_eTx_th}")
-
-    voltage, current, over_all_test, rw_test, pll_test, phase_width_test, input_word_alignment_test, io_scan_test, output_alignment_test, alignment_bypass_test, comparing_various_config_test, track_mode_test,pll_width,eRx_0,eRx_1,eRx_2,eRx_3,eRx_4,eRx_5,eRx_6,eRx_7,eRx_8,eRx_9,eRx_10,eRx_11,eRx2_0,eRx2_1,eRx2_2,eRx2_3,eRx2_4,eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,eTx_6,eTx_7,eTx_8,eTx_9,eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,eTx2_11,eTx2_12, test_end_check = econt_qc( chip, odir, tag, voltage, current, 27,pll_th, max_eRx_th, sec_max_eRx_th, max_eTx_th, sec_max_eTx_th)
+#------------------------------------------------
+    voltage, current, over_all_test, rw_test, pll_test, phase_width_test, input_word_alignment_test, io_scan_test,\
+    output_alignment_test, alignment_bypass_test, comparing_various_config_test, track_mode_test,pll_width,\
+    eRx_0,eRx_1,eRx_2,eRx_3,eRx_4,eRx_5,eRx_6,eRx_7,eRx_8,eRx_9,eRx_10,eRx_11,eRx2_0,eRx2_1,eRx2_2,eRx2_3,eRx2_4,\
+    eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,eTx_6,eTx_7,eTx_8,eTx_9,\
+    eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,eTx2_11,eTx2_12,\
+    test_end_check = econt_qc( chip, odir, tag, voltage, current, 27,pll_th, max_eRx_th, sec_max_eRx_th, max_eTx_th, sec_max_eTx_th)
     # ps.TurnOff() # for turning off power supply for during swapping chip
+#----------------------------------------------------------------------------------------------
+#Updating database
     if os.path.exists(f"{database}.db") == False:
         create_database(database_name=f'{database}', table_name=f'{database}')
 
-    stuff=[(chip, test_start_time, voltage, current, over_all_test, rw_test, pll_test, phase_width_test, input_word_alignment_test, io_scan_test, output_alignment_test, alignment_bypass_test, comparing_various_config_test, track_mode_test, pll_th, max_eRx_th, sec_max_eRx_th, max_eTx_th, sec_max_eTx_th,int(pll_width),eRx_0,eRx_1,eRx_2,eRx_3,eRx_4,eRx_5,eRx_6,eRx_7,eRx_8,eRx_9,eRx_10,eRx_11,eRx2_0,eRx2_1,eRx2_2,eRx2_3,eRx2_4,eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,eTx_6,eTx_7,eTx_8,eTx_9,eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,eTx2_11,eTx2_12)]
+    stuff=[(chip, test_start_time, voltage, current, over_all_test, rw_test, pll_test, phase_width_test, input_word_alignment_test,\
+    io_scan_test, output_alignment_test, alignment_bypass_test, comparing_various_config_test, track_mode_test, pll_th, max_eRx_th,\
+    sec_max_eRx_th, max_eTx_th, sec_max_eTx_th,int(pll_width),eRx_0,eRx_1,eRx_2,eRx_3,eRx_4,eRx_5,eRx_6,eRx_7,eRx_8,eRx_9,eRx_10,\
+    eRx_11,eRx2_0,eRx2_1,eRx2_2,eRx2_3,eRx2_4,eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,\
+    eTx_6,eTx_7,eTx_8,eTx_9,eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,\
+    eTx2_11,eTx2_12)]
 
     add_many_column(stuff,database_name=f'{database}', table_name=f'{database}')
     logging.info(f" data up dated to databse {database}")
