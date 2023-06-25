@@ -98,23 +98,6 @@ def show_all_plan(database_name='Econt_database', table_name = 'Econt_table'):
     for item in data:
         print(item)
 
-#show with header more artistic
-def show_all(database_name='Econt_database', table_name = 'Econt_table'):
-    conn = sqlite3.connect(f'{database_name}.db')
-    c = conn.cursor()
-    c.execute(f"SELECT  rowid, * FROM {table_name}")
-    data = c.fetchall()
-    print("--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-    print( 'rowid',' |     ','start D/T','     |     ' ,'End D/T','   |    ', 'Data Directory','  |  ','Chip','  | ','Power',' | ','All test','|','R/W test','|','PLL test','|',
-     'Phase scan Width Test','|','IO scan Width test','  |')
-    print("--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-    for item in data:
-        print(item[0],"    ",item[1],"   ",item[2],"  ", item[3],"    ",item[4],"   ",item[5],"    ",item[6],"    ",item[7],"    ",
-        item[8],"             ", item[9] ,"                ", item[10],'   |  ')
-    print("--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-    conn.commit()
-    conn.close()
-
 # add new row
 def add_one_row(item1,item2,item3,item4,item5,item6,item7,item8, item9, database_name='Econt_database', table_name='Econt_table'):
     conn = sqlite3.connect(f'{database_name}.db')

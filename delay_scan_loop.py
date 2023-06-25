@@ -58,7 +58,7 @@ def delay_scan(odir,ioType='from',tag=''):
             writer.writerow([f'CH_{ch}' for ch in errorcounts.keys()])
             for j in range(len(errorcounts[0])):
                 writer.writerow([errorcounts[key][j] for key in errorcounts.keys()])
-    return errorcounts
+    return bitcounts, errorcounts
 
 
 
@@ -77,10 +77,11 @@ if __name__ == "__main__":
 
 
         print(f">>>>>>>>>>>Test for chip_{chip}>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        errorcounts = delay_scan(args.odir,args.io)
-        # errorcounts = delay_scan(odir,ioType='from',tag=tag)
+        bitcounts, errorcounts = delay_scan(args.odir,args.io)
+        bitcounts_io = list(bitcounts.values())
         err_counts_io = list(errorcounts.values())
         print("Error counts form IO delay scan: %s"%err_counts_io)
+        print("BItcounts for IO delay scan: %s"%bitcounts_io)
         max_width_io, second_max_width_io =  get_max_width(err_counts_io, channels=13, padding=10)
         print(f" Max width of io-scan settings {max_width_io}")
         print(f" Second Max width of io-scan settings {second_max_width_io}")

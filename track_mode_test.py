@@ -2,44 +2,14 @@ from set_econt import startup,set_phase,set_phase_of_enable,set_runbit,read_stat
 from utils.asic_signals import ASICSignals
 from i2c import I2C_Client
 from PRBS import scan_prbs
-# from PLL import scanCapSelect
-# from delay_scan import delay_scan
-# from TestStand_Controls import psControl
-# import csv
-# import argparse,os,pickle,pprint
 import numpy as np
-# import sys,copy
-# import logging
 import time
 import datetime
-# import sqlite3
-# import numpy as np
-# import socket
-# import os, time, datetime
 i2cClient=I2C_Client(forceLocal=1)
 
-# error_counts = [[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [255, 255,   0,   3 ,  0,   0,   0,   0, 103,   0,   0,   0],
-#  [255, 255, 255, 255, 255,  24, 255,   0, 255,  37, 255,   0],
-#  [255,   2, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
-#  [  0,   0, 255, 255, 255, 255, 255, 255,   0, 255, 255, 255],
-#  [  0,   0,   0,   0,   0, 255,   0, 255,   0,  77,   4, 255],
-#  [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
-#  [255, 255,   0,   0,   0,   0,   0,   0,  17,   0,   0,   0],
-#  [255, 255, 255, 255, 255,  61, 255,   0, 255,  77, 255,   0],
-#  [255,  12, 255, 255, 255, 255, 255, 255, 255, 255, 255, 174],
-#  [  0,   0, 255, 255, 255, 255,  32, 255,   0, 255, 255, 255]]
-#
-# best_setting =  [7, 7, 9, 9, 9, 2, 9, 2, 8, 9, 9, 2]
+
 # #-----------------------------------------
-# # Do a hard reset
-# resets = ASICSignals()
-# resets.send_reset(reset='hard',i2c='ASIC')
-# resets.send_reset(reset='hard',i2c='emulator')
+
 # # Initialize
 startup()
 set_fpga()
@@ -48,23 +18,38 @@ track_mode_1_test = -1
 track_mode_2_test = -1
 track_mode_3_test = -1
 
-# set_phase_of_enable('1')
-# goodVCOCapValue = 27
-# i2cClient.call(args_name='PLL_CBOvcoCapSelect',args_value=f'{goodVCOCapValue}')
-# Test the different track modes and train channels
+
 err_counts, best_setting = scan_prbs(32,'ASIC',0.05,range(0,12),1,verbose=0,odir='data',tag='')
 print("PRBS Error Counts----",err_counts)
 
 # print("error counts for setting 0", err_counts[0:4])
+error_counts = [[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [255, 255,   0,   3 ,  0,   0,   0,   0, 103,   0,   0,   0],
+ [255, 255, 255, 255, 255,  24, 255,   0, 255,  37, 255,   0],
+ [255,   2, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
+ [  0,   0, 255, 255, 255, 255, 255, 255,   0, 255, 255, 255],
+ [  0,   0,   0,   0,   0, 255,   0, 255,   0,  77,   4, 255],
+ [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+ [255, 255,   0,   0,   0,   0,   0,   0,  17,   0,   0,   0],
+ [255, 255, 255, 255, 255,  61, 255,   0, 255,  77, 255,   0],
+ [255,  12, 255, 255, 255, 255, 255, 255, 255, 255, 255, 174],
+ [  0,   0, 255, 255, 255, 255,  32, 255,   0, 255, 255, 255]]
+
+best_setting =  [7, 7, 9, 9, 9, 2, 9, 2, 8, 9, 9, 2]
 
 test_start_time = time.time()
 for trackmode in range(1, 4):
     i2cClient.call(args_name='EPRXGRP_TOP_trackMode', args_value=f'{trackmode}')
     phaseSelect_vals = []
     error_t =[]
-    for trainchannel in range(0, 50):
-        if trackmode == 3:
-            set_phase(best_setting=','.join([str(i) for i in best_setting]))
+    if trackmode == 3:
+        set_phase(best_setting=','.join([str(i) for i in best_setting]))
+    for trainchannel in range(0, 5):
+
         i2cClient.call(args_name='CH_EPRXGRP_*_trainChannel', args_value='1')
         i2cClient.call(args_name='CH_EPRXGRP_*_trainChannel', args_value='0')
         x = i2cClient.call(args_name='CH_EPRXGRP_*_status_phaseSelect',args_i2c='ASIC')
