@@ -4,15 +4,15 @@ from i2c import I2C_Client
 from PRBS import scan_prbs
 from PLL import scanCapSelect
 from delay_scan import delay_scan
-from PowerSupplyControls import Agilent3648A
+#from PowerSupplyControls import Agilent3648A
 import argparse,os,pickle,pprint
 import numpy as np
 import sys,copy,logging,datetime,sqlite3,socket,os,time,csv,argparse
 from sqlite3_database import create_database, add_many_column, show_all_plan
+from PowerSupplyControls import getPowerSupply
 
+ps=getPowerSupply('192.168.1.50',6)
 i2cClient=I2C_Client(forceLocal=1)
-ps=Agilent3648A(host="192.168.1.50",addr=8) # This is for board 48
-
 #-----------------------------------------
 def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
@@ -48,8 +48,6 @@ def find_nearest_value(target, values):
             nearest_value = value
     return nearest_value
 #--------------------------------------------------
-
-#--------------------------------------------------
 def qc_i2c(i2c_address=0x20):
     rw_test = 0
     sys.path.append( 'zmq_i2c/')
@@ -66,7 +64,7 @@ def qc_i2c(i2c_address=0x20):
             if read_value != register_value:
                 no_match[key] = read_value
         return no_match
-
+    time.sleep(5)
     def ping_all_addresses():
         rw_one_test = 0
         rw_zero_test = 0
@@ -292,13 +290,14 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
         # Bypass alignment
         logging.info("Alignment bypass mode")
         try:
-            bypass_alignment = bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13)
-            if bypass_alignment==1:
-                alignment_bypass_test = 1
-                logging.info("Alignment bypass test passed <<<")
-            else:
-                alignment_bypass_test = 0
-                logging.warning("Alignment bypass test failed !!!")
+           #bypass_alignment = bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13)
+           bypass_alignment = bypass_align(idir="configs/test_vectors/alignment/")
+           if bypass_alignment==1:
+              alignment_bypass_test = 1
+              logging.info("Alignment bypass test passed <<<")
+           else:
+              alignment_bypass_test = 0
+              logging.warning("Alignment bypass test failed !!!")
         except:
             logging.warning("Alignment bypass test is incomplete ???")
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -455,16 +454,16 @@ if __name__ == "__main__":
                         filemode='a')
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    # console.setLevel(logging.DEBUG)
+    #console.setLevel(logging.DEBUG)
     _f='%(asctime)s - {_tag} - %(levelname)-6s %(message)s'.format(_tag=tag)
     console.setFormatter(logging.Formatter(_f))
     logging.getLogger().addHandler(console)
 #------------------------------------------
 # Power supply
-    ps.SetLimits_1(v=1.2,i=0.6)
+    ps.SetLimits(1.2,0.6)
     ps.TurnOn()
     time.sleep(1)
-    real_voltage = ps.ReadPower_1()
+    real_voltage = ps.ReadPower()
     np.savetxt(f"{odir}/power_voltage_current_{tag}.txt", np.array([real_voltage]), delimiter=" ", fmt="%s", header="")
     logging.info(f"power status, voltage and current  to chip : {real_voltage[0]},  {real_voltage[1]}, {real_voltage[2]}")
     voltage = real_voltage[1]
@@ -488,8 +487,9 @@ if __name__ == "__main__":
     eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,eTx_6,eTx_7,eTx_8,eTx_9,\
     eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,eTx2_11,eTx2_12,\
     test_end_check = econt_qc( chip, odir, tag, voltage, current, 27,pll_th, max_eRx_th, sec_max_eRx_th, max_eTx_th, sec_max_eTx_th)
-    # ps.TurnOff() # for turning off power supply for during swapping chip
+    #ps.TurnOff() # for turning off power supply for during swapping chip
 #----------------------------------------------------------------------------------------------
+
 #Updating database
     if os.path.exists(f"{database}.db") == False:
         create_database(database_name=f'{database}', table_name=f'{database}')
