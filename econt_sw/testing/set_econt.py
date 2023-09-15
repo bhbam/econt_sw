@@ -263,7 +263,7 @@ def output_align(verbose=False,outdir='',chip_number=00000):
 
     data = lc.empty_fifo(["lc-ASIC","lc-emulator","lc-input"])
     return err_counts
-def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emulator=13):
+def bypass_align(idir="configs/test_vectors/alignment/"):
     # configure alignment inputs
     bypass_test = 0
     tv.configure("",idir,fname="testInput.csv")
@@ -272,7 +272,6 @@ def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emula
     rpt_dir = f"{idir}/RPT"
     tv_bypass.set_bypass(0)
     tv_bypass.configure("",rpt_dir,fname="testOutput.csv")  
-
     # configure RPT(13eTx) i2c for ASIC
     logging.debug(f"Configure ASIC w. {rpt_dir}/init.yaml")
     set_runbit(0)
@@ -281,15 +280,9 @@ def bypass_align(idir="configs/test_vectors/alignment/",start_ASIC=0,start_emula
     x=i2cClient.call(args_name='FMTBUF_eporttx_numen',args_write=False)
     num_links = x['ASIC']['RW']['FMTBUF_ALL']['config_eporttx_numen']
     logging.debug(f"Num links {num_links}")
-
     # then modify emulators latency until we find pattern
     from latency import align
-    latency_ASIC =  lc.read_latency(['lc-ASIC'])['lc-ASIC']
-    align_test = align(BX0_word=0xffffffff,
-          neTx=10,
-          start_ASIC=start_ASIC,start_emulator=start_emulator,
-          modify_ASIC=False
-    )
+    align_test = align(BX0_word=0xffffffff,captureFC='link_reset_econd',neTx=10)
     if align_test:
        bypass_test =1
     return bypass_test
@@ -314,7 +307,6 @@ def bypass_compare(idir,odir,ttag=""):
     x=i2cClient.call(args_name='MFC_ALGORITHM_SEL_DENSITY_algo_select',args_write=False)
     algo = x['ASIC']['RW']['MFC_ALGORITHM_SEL_DENSITY']['algo_select']
     logging.debug(f"ASIC: Num links {num_links} and algo {algo}")
-
     # modify latency
     latencies = lc.read_latency(['lc-ASIC','lc-emulator'])
     logging.debug("Read Latencies asic %s"%latencies['lc-ASIC'])
