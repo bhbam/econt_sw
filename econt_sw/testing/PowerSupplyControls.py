@@ -21,11 +21,6 @@ class gpibControl:
     def select(self):
         if not self.addr is None:
             self.gpib.select(self.addr)
-            # if self.addr>30:
-            #     addr=GPIBAddresses[self.addr]
-            # else:
-            #     addr=board
-            # self.gpib.select(addr)
 
     def ID(self):
         self.select()
@@ -37,6 +32,13 @@ class gpibControl:
 
 
 class Agilent3648A(gpibControl):
+    def __init__(self, host, addr):
+        gpibControl.__init__(self, host, addr)
+        #check we have the correct ID for Agilent 3648A
+        modelID=self.ID()
+        expectedModel='Agilent Technologies,E3648A,0,1.7-5.0-1.0'
+        assert modelID==expectedModel, f"Incorrect Model for Addr {addr}\nRead:     {modelID}\nExpected: {expectedModel}"
+
     def IsOn(self):
         self.select()
         return self.gpib.query("OUTP:STAT?")[:-1]
@@ -47,7 +49,7 @@ class Agilent3648A(gpibControl):
     def TurnOff(self):
         self.gpib.write("OUTP OFF")
 
-    def ReadPower(self, output):
+    def ReadPower(self, output=1):
         self.select()
         v=self.gpib.query(f"INST:SEL OUT{output}\nMEAS:VOLT?")[:-1]
         i=self.gpib.query(f"INST:SEL OUT{output}\nMEAS:CURR?")[:-1]
@@ -60,7 +62,7 @@ class Agilent3648A(gpibControl):
     def ReadPower_2(self):
         return self.ReadPower(2)
 
-    def ReadLimits(self, output):
+    def ReadLimits(self, output=1):
         self.select()
         v=self.gpib.query(f"INST:SEL OUT{output}\nVOLT?")[:-1]
         i=self.gpib.query(f"INST:SEL OUT{output}\nCURR?")[:-1]
@@ -72,7 +74,7 @@ class Agilent3648A(gpibControl):
     def ReadLimits_2(self):
         return self.ReadLimits(2)
 
-    def SetLimits(self, output, voltage, current):
+    def SetLimits(self, voltage, current, output=1):
         self.gpib.write(f"INST:SEL OUT{output}\nVOLT {voltage}")
         self.gpib.write(f"INST:SEL OUT{output}\nCURR {current}")
 
@@ -81,6 +83,78 @@ class Agilent3648A(gpibControl):
 
     def SetLimits_2(self,v=1.2,i=0.6):
         self.SetLimits(output=2, voltage=v, current=i)
+
+
+class Agilent3642A(gpibControl):
+    def __init__(self, host, addr):
+        gpibControl.__init__(self, host, addr)
+        #check we have the correct ID for Agilent 3642AA
+        modelID=self.ID()
+        expectedModel='Agilent Technologies,E3642A,0,1.6-5.0-1.0'
+        assert modelID==expectedModel, f"Incorrect Model for Addr {addr}\nRead:     {modelID}\nExpected: {expectedModel}"
+
+    def IsOn(self):
+        self.select()
+        return self.gpib.query("OUTP:STAT?")[:-1]
+
+    def TurnOn(self):
+        self.gpib.write("OUTP ON")
+
+    def TurnOff(self):
+        self.gpib.write("OUTP OFF")
+
+    def ReadPower(self):
+        self.select()
+        v=self.gpib.query(f"MEAS:VOLT?")[:-1]
+        i=self.gpib.query(f"MEAS:CURR?")[:-1]
+        p=self.gpib.query("OUTP:STAT?")[:-1]
+        return int(p), float(v),float(i)
+
+    def ReadLimits(self):
+        self.select()
+        v=self.gpib.query(f"VOLT?")[:-1]
+        i=self.gpib.query(f"CURR?")[:-1]
+        return float(v),float(i)
+
+    def SetLimits(self, voltage, current):
+        self.gpib.write(f"VOLT {voltage}")
+        self.gpib.write(f"CURR {current}")
+
+
+class Agilent3633A(gpibControl):
+    def __init__(self, host, addr):
+        gpibControl.__init__(self, host, addr)
+        #check we have the correct ID for Agilent 3633A
+        modelID=self.ID()
+        expectedModel='HEWLETT-PACKARD,E3633A,0,1.7-5.0-1.0'
+        assert modelID==expectedModel, f"Incorrect Model for Addr {addr}\nRead:     {modelID}\nExpected: {expectedModel}"
+
+    def IsOn(self):
+        self.select()
+        return self.gpib.query("OUTP:STAT?")[:-1]
+
+    def TurnOn(self):
+        self.gpib.write("OUTP ON")
+
+    def TurnOff(self):
+        self.gpib.write("OUTP OFF")
+
+    def ReadPower(self):
+        self.select()
+        v=self.gpib.query(f"MEAS:VOLT?")[:-1]
+        i=self.gpib.query(f"MEAS:CURR?")[:-1]
+        p=self.gpib.query("OUTP:STAT?")[:-1]
+        return int(p), float(v),float(i)
+
+    def ReadLimits(self):
+        self.select()
+        v=self.gpib.query(f"VOLT?")[:-1]
+        i=self.gpib.query(f"CURR?")[:-1]
+        return float(v),float(i)
+
+    def SetLimits(self, voltage, current):
+        self.gpib.write(f"VOLT {voltage}")
+        self.gpib.write(f"CURR {current}")
 
 
 
@@ -136,7 +210,7 @@ class ObelixSupplies(gpibControl):
 #        resistance=float(self.gpib.read()[:-1])
         temperature=((resistance/1000)-1)/0.00385
         return temperature, resistance
-        
+
     def ConfigReadCurrent(self):
         self.select(12)
         self.gpib.write("*RST")
@@ -147,3 +221,22 @@ class ObelixSupplies(gpibControl):
         self.select(12)
         current=float(self.gpib.query(":READ?"))
         return current
+
+knownModelTypes=['Agilent Technologies,E3648A,0,1.7-5.0-1.0',
+                 'Agilent Technologies,E3642A,0,1.6-5.0-1.0',
+                 'HEWLETT-PACKARD,E3633A,0,1.7-5.0-1.0']
+
+def getPowerSupply(ip, addr):
+    ps=gpibControl(ip,addr)
+    model=ps.ID()
+    ps.disconnect()
+    ps.close()
+
+    assert model in knownModelTypes
+
+    if model=='Agilent Technologies,E3648A,0,1.7-5.0-1.0':
+        return Agilent3648A(ip,addr)
+    if model=='Agilent Technologies,E3642A,0,1.6-5.0-1.0':
+        return Agilent3642A(ip,addr)
+    if model=='HEWLETT-PACKARD,E3633A,0,1.7-5.0-1.0':
+        return Agilent3633A(ip,addr)

@@ -73,7 +73,7 @@ def match_BX0(
         (BX0_rows[0], BX0_rows[:neTx]),
         (BX0_rows[num_outputs], BX0_rows[num_outputs:num_outputs+neTx]),
     ]
-    # print('orbits',orbits)
+    # logging.debug('orbits',orbits)
 
     keep_latency_scan = True
     new_ref_position = None    
@@ -151,7 +151,7 @@ def scan_latency(
     else:
         latencies = range(starting_value,20)
 
-    # print(latencies)
+    # logging.debug(latencies)
     # loop over latency values
     for val in latencies:
         # replace value in the latency array, if it is not 1
@@ -177,33 +177,37 @@ def scan_latency(
 
     return latency,BX0_position
 
-##
+fcConfigRemap={'link_reset_econt':'linkreset_ECONt',
+               'link_reset_econd':'linkreset_ECONd'
+           }
+
 def align(BX0_word=0xf922f922,
+          captureFC='link_reset_econt',
           neTx=13):
 
     """
     New, simplified, latency alignment process.
     Sets latency to 0 for both lc-ASIC and lc-emulator
-    Finds the BX0s locations in the
+    Finds the BX0s locations in the. By default it works for ouput align.
+    For bypass alignment use BX0_word=0xffffffff,captureFC='link_reset_econd',neTx=10
     """
-    lc.set_latency(['lc-ASIC','lc-emulator'],[0]*neTx)
 
+    logging.debug(f"Capturing on {captureFC} for {neTx} eTx")
+
+    lc.set_latency(['lc-ASIC','lc-emulator'],[0]*13)
     lcaptures=['lc-ASIC','lc-emulator']
-    lc.configure_acquire(lcaptures,"linkreset_ECONt")
+    lc.configure_acquire(lcaptures,fcConfigRemap[captureFC])
     lc.do_capture(lcaptures)
-    fc.request("link_reset_econt")
+    fc.request(captureFC)
     data = lc.get_captured_data(lcaptures)
 
-    # Find location of BX0 pattern
-    BX0_ASIC_idx=np.argwhere(data['lc-ASIC'][:3564]==0xf922f922)
-    BX0_emulator_idx=np.argwhere(data['lc-emulator'][:3564]==0xf922f922)
-
+    BX0_ASIC_idx=np.argwhere(data['lc-ASIC'][:3564]==BX0_word)[:neTx]
+    BX0_emulator_idx=np.argwhere(data['lc-emulator'][:3564]==BX0_word)[:neTx]
     BX0_ASIC=np.array([-1]*neTx,dtype=int)
     BX0_emulator=np.array([-1]*neTx,dtype=int)
 
     BX0_ASIC[BX0_ASIC_idx[:,1]]=BX0_ASIC_idx[:,0]
     BX0_emulator[BX0_emulator_idx[:,1]]=BX0_emulator_idx[:,0]
-
     #Check that BX0 pattern found in all eTx
     try:
         assert ((BX0_ASIC>-1).all())
@@ -212,20 +216,34 @@ def align(BX0_word=0xf922f922,
         logging.error(f"Unable to locate BX0 pattern ({BX0_word:08x})")
         logging.error("    Locations in lc-ASIC     : %s"%list(BX0_ASIC))
         logging.error("    Locations in lc-emulator : %s"%list(BX0_emulator))
+        logging.debug("False") 
         return False
+    if neTx !=13 :    
+       BX0_ASIC=np.array([BX0_ASIC[0]]*13)
+       BX0_emulator=np.array([BX0_emulator[0]]*13)
 
     #Set latency, delaying all eTx to latest word from either emulator or ASIC
     maxBX0=max(BX0_emulator.max(),BX0_ASIC.max())
-
     newLat_ASIC=maxBX0-BX0_ASIC
     newLat_emulator=maxBX0-BX0_emulator
-
+    logging.info("Align ASIC latency adjusted by BX %s "%(newLat_ASIC))
+    logging.info("Align Emulator latency adjusted by BX %s "%(newLat_emulator))
     lc.set_latency(['lc-ASIC'],newLat_ASIC)
     lc.set_latency(['lc-emulator'],newLat_emulator)
+
+    # checking the alifnment after seeting them to required values
+    lcaptures=['lc-ASIC','lc-emulator']
+    lc.configure_acquire(lcaptures,fcConfigRemap[captureFC])
+    lc.do_capture(lcaptures)
+    fc.request(captureFC)
+    data = lc.get_captured_data(lcaptures)
+    logging.info('Good Latency Alignment  :   %s'%(data['lc-ASIC']==data['lc-emulator']).all())
+
 
     return True
 
 
 if __name__=='__main__':
-    align()
+#  print(align())
+   print(align(BX0_word=0xffffffff,captureFC='link_reset_econd',neTx=10))
 
