@@ -7,7 +7,7 @@ import socket
 class PrologixGPIBEthernet:
     PORT = 1234
 
-    def __init__(self, host, timeout=1):
+    def __init__(self, host, timeout=3):
         self.host = host
         self.socket = socket.socket(socket.AF_INET,
                                     socket.SOCK_STREAM,
