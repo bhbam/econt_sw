@@ -254,7 +254,7 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
             i2cClient.call(args_yaml="configs/alignOutput_TS.yaml",args_i2c='ASIC,emulator',args_write=1)
             set_runbit(1)
             logging.debug(f"Configured ASIC/emulator with all eTx")
-            errorcounts = delay_scan(odir,ioType='from',tag=tag)
+            bitcounts,errorcounts = delay_scan(odir,ioType='from',tag=tag)
             err_counts_io = list(errorcounts.values())
             logging.debug("Error counts form IO delay scan: %s"%err_counts_io)
             max_width_io, second_max_width_io =  get_max_width(err_counts_io, channels=13, padding=10)
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--chip', '-c', type=int, default=9999, help='Chip number')
     parser.add_argument('--odir', '-o', type=str, default='data', help='output dir')
-    parser.add_argument('--database', '-d', type=str, default='Econt_database', help='Chip number')
+    parser.add_argument('--database', '-d', type=str, default='Econt_database', help='Database name')
     args = parser.parse_args()
     chip = args.chip
     out_dir = args.odir
@@ -448,6 +448,7 @@ if __name__ == "__main__":
     tag=f"chip_{chip}"
     logName=f"{odir}/logFile_{tag}.log"
     logging.basicConfig(level=logging.INFO,
+    #logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s - {_tag} - %(levelname)-6s %(message)s'.format(_tag=tag),
                         datefmt='%m-%d-%y %H:%M:%S',
                         filename=logName,
@@ -487,7 +488,7 @@ if __name__ == "__main__":
     eRx2_5,eRx2_6,eRx2_7,eRx2_8,eRx2_9,eRx2_10,eRx2_11,eTx_0,eTx_1,eTx_2,eTx_3,eTx_4,eTx_5,eTx_6,eTx_7,eTx_8,eTx_9,\
     eTx_10,eTx_11,eTx_12,eTx2_0,eTx2_1,eTx2_2,eTx2_3,eTx2_4,eTx2_5,eTx2_6,eTx2_7,eTx2_8,eTx2_9,eTx2_10,eTx2_11,eTx2_12,\
     test_end_check = econt_qc( chip, odir, tag, voltage, current, 27,pll_th, max_eRx_th, sec_max_eRx_th, max_eTx_th, sec_max_eTx_th)
-    #ps.TurnOff() # for turning off power supply for during swapping chip
+    ps.TurnOff() # for turning off power supply for during swapping chip
 #----------------------------------------------------------------------------------------------
 
 #Updating database

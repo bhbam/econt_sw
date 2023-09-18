@@ -337,13 +337,19 @@ def delay_scan(odir,tag=''):
     if not odir is None:
         import os
         os.system(f'mkdir -p {odir}')
-        with open(f'{odir}/{ioType}_io_delayscan{tag}.csv','w') as csvfile:
+        with open(f'{odir}/{ioType}_io_delayscan_errorcounts{tag}.csv','w') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             writer.writerow([f'CH_{ch}' for ch in errorcounts.keys()])
             for j in range(len(errorcounts[0])):
                 writer.writerow([errorcounts[key][j] for key in errorcounts.keys()])
-
-    return errorcounts
+        
+    
+        with open(f'{odir}/{ioType}_io_delayscan_bitcounts{tag}.csv','w') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',')
+            writer.writerow([f'CH_{ch}' for ch in bitcounts.keys()])
+            for j in range(len(bitcounts[0])):
+                writer.writerow([bitcounts[key][j] for key in bitcounts.keys()])
+    return bitcounts, errorcounts
 
 if __name__=='__main__':
     import argparse
