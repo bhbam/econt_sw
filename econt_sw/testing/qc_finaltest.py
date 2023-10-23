@@ -11,7 +11,7 @@ import sys,copy,logging,datetime,sqlite3,socket,os,time,csv,argparse
 from sqlite3_database import create_database, add_many_column, show_all_plan
 from PowerSupplyControls import getPowerSupply
 
-ps=getPowerSupply('192.168.1.50',6)
+ps=getPowerSupply('192.168.1.50',4)
 i2cClient=I2C_Client(forceLocal=1)
 #-----------------------------------------
 def consecutive(data, stepsize=1):
@@ -37,6 +37,50 @@ def get_max_width(err_counts, channels, padding): # channels 12 for phase scan a
         max_width_by_ch.append(max_width)
         second_max_width_by_ch.append(second_max_width)
     return max_width_by_ch, second_max_width_by_ch
+
+'''def get_phase_width(err_counts):
+    max_width_by_ch = []
+    for ch in range(13):
+        x = err_counts[:,ch]
+        phases = consecutive(np.argwhere(x==0).flatten())
+        sizes = [np.size(a) for a in phases]
+        remove_indexs = []
+        remove_sizes=[]
+        try:
+            for l in phases:
+                if l[0]==1 or l[-1]==63:
+                    indices = [i for i, arr in enumerate(phases) if np.array_equal(arr, l)]
+                    remove_indexs.append(indices[0])
+                    remove_sizes.append(sizes[indices[0]])
+            for i in remove_sizes:
+                sizes.remove(i)
+            max_width = np.max(sizes)
+        except:
+            max_width = 0
+        max_width_by_ch.append(max_width)
+    return max_width_by_ch
+'''
+def get_phase_width(err_counts):
+    max_width_by_ch = []
+    for ch in range(13):
+        x = np.transpose(err_counts[ch])
+        phases = consecutive(np.argwhere(x==0).flatten())
+        sizes = [np.size(a) for a in phases]
+        remove_indexs = []
+        remove_sizes=[]
+        try:
+            for l in phases:
+                if l[0]==1 or l[-1]==62:
+                    indices = [i for i, arr in enumerate(phases) if np.array_equal(arr, l)]
+                    remove_indexs.append(indices[0])
+                    remove_sizes.append(sizes[indices[0]])
+            for i in remove_sizes:
+                sizes.remove(i)
+            max_width = np.max(sizes)
+        except:
+            max_width = 0
+        max_width_by_ch.append(max_width)
+    return max_width_by_ch
 
 def find_nearest_value(target, values):
     nearest_value = None
@@ -257,14 +301,14 @@ def econt_qc(board,odir,tag,voltage=1.2, current=2.6, good_capSelect_Value=27,pl
             bitcounts,errorcounts = delay_scan(odir,ioType='from',tag=tag)
             err_counts_io = list(errorcounts.values())
             logging.debug("Error counts form IO delay scan: %s"%err_counts_io)
-            max_width_io, second_max_width_io =  get_max_width(err_counts_io, channels=13, padding=10)
-            np.savetxt(f"{odir}/width_of_io_scan_seting_{tag}.txt", np.array([max_width_io, second_max_width_io]), delimiter=" ", fmt="%d", header="")
+            max_width_io =  get_phase_width(err_counts_io)
+            np.savetxt(f"{odir}/width_of_io_scan_seting_{tag}.txt", np.array([max_width_io]), delimiter=" ", fmt="%d", header="")
             logging.info(f" Max width of io-scan settings {max_width_io}")
-            logging.info(f" Second Max width of io-scan settings {second_max_width_io}")
+            #logging.info(f" Second Max width of io-scan settings {second_max_width_io}")
             max_IO_delay = np.array([max_IO_delay_scan_width_thresold] * 13)
-            second_max_IO_delay = np.array([second_max_IO_delay_scan_width_thresold] * 13)
-            np.savetxt(f"{odir}/io_delay_width_comparion_{tag}.txt", np.array([max_width_io >= max_IO_delay,second_max_width_io >= second_max_IO_delay]), delimiter=" ", fmt="%d", header="")
-            if ((max_width_io >= max_IO_delay).all() and (second_max_width_io >= second_max_IO_delay).all()):
+            #second_max_IO_delay = np.array([second_max_IO_delay_scan_width_thresold] * 13)
+            np.savetxt(f"{odir}/io_delay_width_comparion_{tag}.txt", np.array([max_width_io >= max_IO_delay]), delimiter=" ", fmt="%d", header="")
+            if  (max_width_io >= max_IO_delay).all():
                 io_scan_test = 1
                 logging.info(f"Phase width test at eTx passed <<<")
             else:
